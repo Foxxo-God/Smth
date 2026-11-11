@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101619">
+<title>Bytebound: Neon Burrow</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Space+Mono:wght@400;700&display=swap');
+:root{color-scheme:dark;--ink:#101619;--shell:#263438;--mint:#8dffce;--orange:#ffbd69;--paper:#e9fff4;--dim:#81a397}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% 20%,#28453e 0%,#192a29 36%,#101619 78%);color:var(--paper);font-family:'Space Mono',monospace;display:grid;place-items:center;padding:22px;overflow-x:hidden}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.14;background-image:linear-gradient(transparent 95%,#a3ffdb 96%),linear-gradient(90deg,transparent 95%,#a3ffdb 96%);background-size:36px 36px;mask-image:linear-gradient(transparent,#000 35%,transparent)}
+.machine{width:min(100%,1040px);padding:22px 26px 26px;background:linear-gradient(145deg,#35494b,#202f33 45%,#1a272a);border:1px solid #536a68;border-radius:22px;box-shadow:0 34px 90px #0009,inset 0 2px #71817a,inset 0 -5px #0e1719;position:relative}
+.machine:before{content:"";position:absolute;inset:9px;border:1px solid #667873;border-radius:16px;pointer-events:none;opacity:.55}
+.topline{display:flex;align-items:center;justify-content:space-between;padding:0 5px 16px;gap:12px}.brand{font:700 14px 'Silkscreen',monospace;color:#d8fff0;letter-spacing:0}.brand span{color:var(--orange)}.edition{font-size:10px;color:#99b8ab;letter-spacing:1px}
+.screen-frame{padding:14px;background:#0b1415;border:2px solid #52645f;border-radius:9px;box-shadow:inset 0 0 0 2px #1c2929,0 6px #10191a;position:relative}
+.screen-frame:after{content:"";position:absolute;inset:15px;pointer-events:none;box-shadow:inset 0 0 45px #a0ffcf10}
+.screen-head{display:flex;align-items:center;justify-content:space-between;padding:0 4px 10px;color:#8aa99c;font-size:10px;text-transform:uppercase;letter-spacing:1px}.live{color:var(--mint)}.live:before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#79f9b9;box-shadow:0 0 9px #79f9b9;margin:0 7px 1px 0}
+canvas{display:block;width:100%;height:auto;aspect-ratio:3/2;image-rendering:pixelated;background:#162c38;border:1px solid #374b4c;touch-action:none}
+.below-screen{display:flex;align-items:center;justify-content:space-between;padding:11px 3px 0;color:#779388;font-size:9px;letter-spacing:.8px}.led{display:inline-block;width:5px;height:5px;border-radius:50%;background:#b4ff9b;box-shadow:0 0 8px #b4ff9b;margin-right:6px}
+.controls{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:20px 8px 0;gap:18px}.dpad{display:grid;grid-template-columns:repeat(3,36px);grid-template-rows:repeat(3,34px);justify-content:start;filter:drop-shadow(0 3px #101719)}.key{border:0;background:#172225;color:#819691;font-size:17px;font-family:inherit;box-shadow:inset 0 1px #4d6260;touch-action:none;user-select:none}.key:active,.key.pressed{background:#324643;color:var(--mint);transform:translateY(2px);box-shadow:inset 0 1px #82978a}.up{grid-column:2;grid-row:1;border-radius:5px 5px 0 0}.left{grid-column:1;grid-row:2;border-radius:5px 0 0 5px}.right{grid-column:3;grid-row:2;border-radius:0 5px 5px 0}.down{grid-column:2;grid-row:3;border-radius:0 0 5px 5px}.middle{grid-column:2;grid-row:2;background:#202e30;box-shadow:inset 0 0 0 3px #172225}
+.actions{justify-self:end;display:flex;gap:12px;align-items:center;transform:rotate(-18deg)}.action{width:53px;height:53px;border-radius:50%;background:#284e4b;color:#b7ffdf;border:1px solid #61827a;font:700 13px 'Silkscreen',monospace;box-shadow:inset 0 2px #90b8a4,0 4px #111a1b;touch-action:none;user-select:none}.action:nth-child(2){transform:translateY(-21px);background:#634d39;color:#ffe0ac;border-color:#967454}.action:active,.action.pressed{transform:translateY(3px);filter:brightness(1.3)}.action:nth-child(2):active,.action:nth-child(2).pressed{transform:translateY(-18px)}
+.middle-controls{justify-self:center;display:flex;gap:14px;align-items:center}.smallkey{border:0;background:#182426;color:#8ba299;border-radius:12px;padding:8px 15px;font:10px 'Space Mono',monospace;box-shadow:inset 0 1px #536561,0 3px #111a1b;touch-action:manipulation}.smallkey:active{transform:translateY(2px)}.keylabel{text-align:center;color:#698078;font-size:8px;letter-spacing:1px;margin-top:8px}.footer{display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding:0 5px;font-size:9px;color:#799188}.footer strong{color:#b0d5c4;font-weight:400}.touch-note{display:none}
+@media(max-width:620px){body{padding:10px}.machine{padding:16px 13px 18px;border-radius:15px}.machine:before{inset:6px;border-radius:11px}.topline{padding-bottom:11px}.brand{font-size:11px}.edition{font-size:8px}.screen-frame{padding:8px}.screen-head{font-size:8px;padding-bottom:7px}.below-screen{font-size:7px}.controls{padding:16px 4px 0;grid-template-columns:1fr auto 1fr;gap:6px}.dpad{grid-template-columns:repeat(3,31px);grid-template-rows:repeat(3,29px)}.key{font-size:15px}.action{width:45px;height:45px;font-size:10px}.actions{gap:7px}.smallkey{padding:7px 10px;font-size:8px}.middle-controls{gap:7px}.footer{font-size:7px}.touch-note{display:inline}}
+@media(max-width:370px){.edition{display:none}.controls{gap:2px}.dpad{grid-template-columns:repeat(3,27px);grid-template-rows:repeat(3,26px)}.action{width:40px;height:40px}.smallkey{padding:6px 8px}}
+</style>
+</head>
+<body>
+<main class="machine" aria-label="Bytebound handheld game">
+  <header class="topline"><div class="brand">POCKET <span>PIXEL</span> / 07</div><div class="edition">FIELD TEST CARTRIDGE · 2004</div></header>
+  <section class="screen-frame" aria-label="Game screen">
+    <div class="screen-head"><span>BYTEBOUND: NEON BURROW</span><span class="live">LINK STABLE</span></div>
+    <canvas id="game" width="240" height="160" aria-label="Platform game. Move with arrow keys or WASD, jump with Z or Space, and dash with X."></canvas>
+    <div class="below-screen"><span><i class="led"></i>CRT DISPLAY / 60 HZ</span><span id="stage-label">SECTOR 01 · MOSS CIRCUIT</span></div>
+  </section>
+  <section class="controls" aria-label="Game controls">
+    <div><div class="dpad"><button class="key up" data-key="ArrowUp" aria-label="Up">▲</button><button class="key left" data-key="ArrowLeft" aria-label="Left">◀</button><div class="key middle"></div><button class="key right" data-key="ArrowRight" aria-label="Right">▶</button><button class="key down" data-key="ArrowDown" aria-label="Down">▼</button></div><div class="keylabel">MOVE</div></div>
+    <div class="middle-controls"><button class="smallkey" id="start-btn">START</button><button class="smallkey" id="sound-btn">SOUND ON</button></div>
+    <div><div class="actions"><button class="action" data-key="KeyX" aria-label="Dash">B</button><button class="action" data-key="Space" aria-label="Jump">A</button></div><div class="keylabel">DASH · JUMP</div></div>
+  </section>
+  <footer class="footer"><span>▲ <strong>ARROWS / WASD</strong> MOVE &nbsp; ● <strong>Z / SPACE</strong> JUMP &nbsp; ● <strong>X</strong> DASH</span><span class="touch-note">TOUCH READY</span></footer>
+</main>
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const W = canvas.width, H = canvas.height;
+  const keys = new Set();
+  const level = [
+    {x:0,y:139,w:240,h:21}, {x:30,y:111,w:42,h:8}, {x:91,y:91,w:45,h:8},
+    {x:160,y:111,w:49,h:8}, {x:208,y:83,w:32,h:8}, {x:0,y:66,w:40,h:8}
+  ];
+  const chips = [{x:44,y:100},{x:108,y:80},{x:177,y:100},{x:222,y:72},{x:18,y:55},{x:75,y:128},{x:145,y:128}];
+  const hazards = [{x:78,y:132,w:13,h:7},{x:139,y:132,w:13,h:7},{x:186,y:104,w:12,h:7}];
+  const checkpoints = [{x:8,y:123},{x:118,y:75},{x:212,y:66}];
+  let player, camera, collected, particles, frame, state, messageTimer, soundOn, audio;
+  let best = Number(localStorage.getItem('bytebound-best') || 0);
+  function reset() {
+    player = {x:10,y:120,vx:0,vy:0,w:10,h:15,ground:false,facing:1,dash:0,dashWait:0,invuln:0,checkpoint:0};
+    camera=0; collected=new Set(); particles=[]; frame=0; state='title'; messageTimer=0;
+  }
+  reset();
+  function tone(freq,duration=0.07,type='square',volume=0.035){
+    if (!soundOn) return;
+    try { audio ||= new (window.AudioContext||window.webkitAudioContext)(); const o=audio.createOscillator(),g=audio.createGain(); o.type=type;o.frequency.value=freq;g.gain.value=volume;o.connect(g);g.connect(audio.destination);o.start();g.gain.exponentialRampToValueAtTime(0.001,audio.currentTime+duration);o.stop(audio.currentTime+duration); } catch {}
+  }
+  function startGame(){if(state==='title'||state==='win'||state==='dead'){reset();state='play';tone(440,.1,'triangle')} else if(state==='play'){state='pause';tone(260)} else if(state==='pause'){state='play';tone(360)}}
+  function jump(){if(state==='title'||state==='win'||state==='dead'){startGame();return} if(state!=='play')return; if(player.ground){player.vy=-5.15;player.ground=false;tone(560,.07,'square',.025)}}
+  function dash(){if(state!=='play'||player.dashWait>0)return;player.dash=9;player.dashWait=52;player.vy=0;player.vx=player.facing*4.3;tone(180,.13,'sawtooth',.025)}
+  function handleKey(code,down){if(down&& !keys.has(code)){if(code==='Space'||code==='KeyZ'||code==='ArrowUp'){jump()} if(code==='KeyX'||code==='ShiftLeft'){dash()} if(code==='Enter'){startGame()}} if(down)keys.add(code);else keys.delete(code)}
+  addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code))e.preventDefault();handleKey(e.code,true)});
+  addEventListener('keyup',e=>handleKey(e.code,false));
+  document.querySelectorAll('[data-key]').forEach(button=>{
+    const code=button.dataset.key;
+    const press=e=>{e.preventDefault();button.classList.add('pressed');handleKey(code,true)};
+    const release=e=>{e.preventDefault();button.classList.remove('pressed');handleKey(code,false)};
+    button.addEventListener('pointerdown',press);button.addEventListener('pointerup',release);button.addEventListener('pointercancel',release);button.addEventListener('pointerleave',e=>{if(e.buttons)release(e)});
+  });
+  document.getElementById('start-btn').addEventListener('click',startGame);
+  document.getElementById('sound-btn').addEventListener('click',e=>{soundOn=!soundOn;e.currentTarget.textContent=soundOn?'SOUND ON':'SOUND OFF';if(soundOn)tone(500)});
+  soundOn=true;
+  function rect(x,y,w,h,color){ctx.fillStyle=color;ctx.fillRect(Math.round(x),Math.round(y),w,h)}
+  function text(str,x,y,size,color='#e7fff3',align='left'){ctx.fillStyle=color;ctx.font=`${size}px monospace`;ctx.textAlign=align;ctx.fillText(str,x,y)}
+  function spawn(x,y,color,n=6){for(let i=0;i<n;i++)particles.push({x,y,vx:(Math.random()-.5)*2.8,vy:(Math.random()-.8)*2.8,life:18+Math.random()*12,color})}
+  function drawBackground(){
+    const grad=ctx.createLinearGradient(0,0,0,H);grad.addColorStop(0,'#1b3850');grad.addColorStop(.58,'#315565');grad.addColorStop(1,'#172a35');ctx.fillStyle=grad;ctx.fillRect(0,0,W,H);
+    for(let i=0;i<34;i++){let x=((i*71-camera*.13)%270+270)%270,y=(i*47)%91;rect(x,y,1,1,i%3?'#8ec9bd':'#e6d69d')}
+    for(let layer=0;layer<3;layer++){let base=91+layer*14;ctx.fillStyle=['#294854','#213d47','#19353e'][layer];ctx.beginPath();ctx.moveTo(0,H);for(let x=0;x<=W;x+=8){let y=base+Math.sin((x+camera*(.13+layer*.09))/18+layer)*7+Math.sin(x/7+layer)*2;ctx.lineTo(x,y)}ctx.lineTo(W,H);ctx.fill()}
+    for(let i=0;i<7;i++){let x=((i*47-camera*.24)%260+260)%260;rect(x,72+(i%3)*9,2,2,'#90efc5')}
+  }
+  function drawTile(p){rect(p.x-camera,p.y,p.w,p.h,'#233c3c');rect(p.x-camera,p.y,p.w,2,'#96d898');rect(p.x-camera,p.y+2,p.w,p.h-2,'#426553');for(let x=4;x<p.w;x+=11)rect(p.x-camera+x,p.y+4,2,2,'#789269');}
+  function drawHero(){
+    let x=Math.round(player.x-camera),y=Math.round(player.y),blink=player.invuln>0&&frame%5<2;if(blink)return;
+    ctx.save();if(player.facing<0){ctx.translate(x+player.w,0);ctx.scale(-1,1);x=0}else x=player.x-camera;
+    x=Math.round(x);
+    const bob=player.ground&&Math.abs(player.vx)>.3&&frame%12<6?1:0;y+=bob;
+    // Tail and ears
+    rect(x+1,y+8,3,7,'#d94f73');rect(x+0,y+12,3,3,'#ffb35d');rect(x+1,y+1,2,5,'#c7ffe6');rect(x+7,y+1,2,5,'#c7ffe6');
+    // Suit, paws, and visor
+    rect(x+2,y+5,7,8,'#85f0c5');rect(x+1,y+8,2,5,'#53b99e');rect(x+8,y+8,2,5,'#53b99e');rect(x+2,y+12,3,3,'#314b50');rect(x+7,y+12,3,3,'#314b50');
+    rect(x+2,y+3,7,5,'#263a52');rect(x+3,y+4,5,3,'#8de6ed');rect(x+4,y+5,3,1,'#fff2ad');rect(x+4,y+10,1,1,'#eaffd8');
+    if(player.dash>0){rect(x-5,y+5,4,2,'#8affdd');rect(x-9,y+8,5,1,'#74cbe2')}
+    ctx.restore();
+  }
+  function draw(){
+    frame++;drawBackground();
+    level.forEach(drawTile);
+    hazards.forEach(h=>{let x=h.x-camera;rect(x,h.y+4,h.w,h.h-4,'#a34453');for(let i=0;i<3;i++){ctx.fillStyle='#ff8b70';ctx.beginPath();ctx.moveTo(x+i*5,h.y+5);ctx.lineTo(x+i*5+3,h.y);ctx.lineTo(x+i*5+5,h.y+5);ctx.fill()}});
+    checkpoints.forEach((c,i)=>{let x=c.x-camera;rect(x,c.y,2,16,i<=player.checkpoint?'#a6ffd3':'#90a7a0');rect(x+2,c.y,7,5,i<=player.checkpoint?'#ffcf78':'#638275');if(i===player.checkpoint)rect(x+2,c.y+2,4,1,'#fff3b7')});
+    chips.forEach((c,i)=>{if(collected.has(i))return;let x=c.x-camera,y=c.y+Math.sin(frame*.09+i)*2;rect(x+2,y,4,6,'#a8ffe1');rect(x,y+2,8,2,'#62d8c0');rect(x+3,y+2,2,2,'#f8ffba')});
+    drawHero();
+    particles=particles.filter(p=>p.life-->0);particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.07;rect(p.x-camera,p.y,2,2,p.color)});
+    if(state==='play')update();
+    drawHud();
+    requestAnimationFrame(draw);
+  }
+  function update(){
+    const left=keys.has('ArrowLeft')||keys.has('KeyA'),right=keys.has('ArrowRight')||keys.has('KeyD');
+    if(player.dash<=0){if(left){player.vx=Math.max(player.vx-.48,-1.7);player.facing=-1}else if(right){player.vx=Math.min(player.vx+.48,1.7);player.facing=1}else player.vx*=.78;player.vy=Math.min(player.vy+.25,4.2)}else player.dash--;
+    if(player.dashWait>0)player.dashWait--;if(player.invuln>0)player.invuln--;
+    player.x+=player.vx;for(const p of level){if(player.x<p.x+p.w&&player.x+player.w>p.x&&player.y<p.y+p.h&&player.y+player.h>p.y){if(player.vx>0)player.x=p.x-player.w;else if(player.vx<0)player.x=p.x+p.w;player.vx=0}}
+    player.y+=player.vy;player.ground=false;for(const p of level){if(player.x<p.x+p.w&&player.x+player.w>p.x&&player.y<p.y+p.h&&player.y+player.h>p.y){if(player.vy>0){player.y=p.y-player.h;player.ground=true}else if(player.vy<0)player.y=p.y+p.h;player.vy=0}}
+    player.x=Math.max(0,Math.min(W-player.w,player.x));
+    chips.forEach((c,i)=>{if(!collected.has(i)&&Math.abs(player.x+5-c.x)<8&&Math.abs(player.y+7-c.y)<10){collected.add(i);spawn(c.x,c.y,'#9bffe0',8);tone(720+collected.size*55,.09,'triangle');if(collected.size>best){best=collected.size;localStorage.setItem('bytebound-best',best)}}});
+    checkpoints.forEach((c,i)=>{if(player.x+player.w>c.x-3&&player.x<c.x+6&&player.y+player.h>c.y){player.checkpoint=i}});
+    if(player.invuln===0&&hazards.some(h=>player.x+player.w>h.x&&player.x<h.x+h.w&&player.y+player.h>h.y+1&&player.y<h.y+h.h)){player.x=checkpoints[player.checkpoint].x;player.y=checkpoints[player.checkpoint].y-15;player.vx=0;player.vy=0;player.invuln=75;spawn(player.x,player.y,'#ff8b70',10);tone(110,.2,'sawtooth',.03)}
+    camera=Math.max(0,Math.min(16,player.x-112));
+    if(player.x>226&&player.y<100){state='win';tone(880,.2,'triangle');setTimeout(()=>tone(1100,.22,'triangle'),140)}
+    if(player.y>H+20){player.x=checkpoints[player.checkpoint].x;player.y=checkpoints[player.checkpoint].y-15;player.vy=0;player.invuln=70}
+  }
+  function drawHud(){
+    rect(5,5,82,16,'#10252ccc');rect(6,6,80,14,'#193943');text('CHIPS',11,16,7,'#9fc9b5');for(let i=0;i<chips.length;i++){rect(40+i*6,10,4,5,collected.has(i)?'#a6ffd3':'#46665f')}
+    rect(177,5,58,16,'#10252ccc');text(`BEST ${String(best).padStart(2,'0')}`,183,16,7,'#ffe0a2');
+    if(state==='title'||state==='pause'||state==='win'||state==='dead'){
+      rect(22,39,196,74,'#10252dea');rect(24,41,192,70,'#203c43');
+      if(state==='title'){text('BYTEBOUND',120,58,13,'#c3ffe4','center');text('NEON BURROW',120,70,7,'#ffcf82','center');text('A tiny fox. One big signal.',120,84,7,'#bfd9cb','center');text('PRESS START / Z TO PLAY',120,101,7,'#95ffd4','center')}
+      if(state==='pause'){text('PAUSED',120,68,12,'#c3ffe4','center');text('PRESS START TO RESUME',120,91,7,'#ffcf82','center')}
+      if(state==='win'){text('SIGNAL RESTORED!',120,61,11,'#c3ffe4','center');text(`${collected.size} / ${chips.length} DATA CHIPS`,120,77,8,'#ffcf82','center');text('PRESS START TO RUN AGAIN',120,98,7,'#95ffd4','center')}
+      if(state==='dead'){text('LINK LOST',120,67,12,'#ff9b91','center');text('PRESS START TO RETRY',120,91,7,'#ffcf82','center')}
+    }
+  }
+  canvas.addEventListener('pointerdown',()=>{if(state==='title'||state==='win')startGame()});
+  draw();
+})();
+</script>
+</body>
+</html>
