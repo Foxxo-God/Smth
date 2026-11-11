@@ -13,22 +13,19 @@ typedef unsigned int u32;
 #define KEY_START 8
 #define KEY_RIGHT 16
 #define KEY_LEFT 32
+#define KEY_UP 64
+#define KEY_DOWN 128
 
-static const u16 sky = RGB(8, 20, 27);
 static const u16 mint = RGB(20, 31, 23);
 static const u16 pale = RGB(25, 31, 26);
 static const u16 amber = RGB(31, 22, 10);
-static int px, py, vx, vy, grounded, facing, dash_frames, dash_cooldown;
-static int game_state, chip_count, camera_x, frame;
-static u32 chip_flags;
+static int px, py, face_x, face_y, hero_hp, gold, room, game_state, frame;
+static int swing_timer, spell_timer, hurt_timer, enemy_count;
+static int enemy_x[4], enemy_y[4], enemy_hp[4], enemy_active[4];
+static int bolt_x, bolt_y, bolt_timer;
 static u16 previous_keys;
-
-static const int platforms[][3] = {
-    {0, 144, 560}, {34, 115, 44}, {100, 92, 48}, {177, 115, 48},
-    {246, 91, 48}, {319, 112, 50}, {390, 87, 47}, {466, 112, 44}
-};
-static const int hazards[][2] = {{78,136},{151,136},{221,136},{294,136},{368,136},{441,136}};
-static const int crystals[][2] = {{49,104},{118,81},{194,104},{263,80},{337,101},{405,76},{482,101},{25,131},{279,131},{420,131}};
+static const int pillar_x[3] = {56, 144, 96};
+static const int pillar_y[3] = {48, 96, 116};
 
 static void pixel(int x, int y, u16 color)
 {
@@ -88,33 +85,91 @@ static void wait_vblank(void)
     while (REG_VCOUNT < 160) { }
 }
 
-static void restart(void)
+static void load_room(int index)
 {
-    px = 12; py = 132; vx = 0; vy = 0; grounded = 0; facing = 1;
-    dash_frames = 0; dash_cooldown = 0; chip_count = 0; chip_flags = 0;
-    camera_x = 0; game_state = 1;
+    static const int spawn_x[3][4] = {{177,186,118,0},{180,192,178,117},{174,0,0,0}};
+    static const int spawn_y[3][4] = {{48,119,72,0},{42,82,126,126},{82,0,0,0}};
+    int i;
+    enemy_count = index == 0 ? 3 : index == 1 ? 4 : 1;
+    for (i = 0; i < 4; ++i) {
+        enemy_active[i] = i < enemy_count;
+        enemy_x[i] = spawn_x[index][i];
+        enemy_y[i] = spawn_y[index][i];
+        enemy_hp[i] = index == 2 ? 6 : index == 1 ? 2 : 1;
+    }
 }
 
-static void collide_platforms(int old_y)
+static void restart(void)
 {
-    int i, x, y, w;
-    grounded = 0;
-    for (i = 0; i < 8; ++i) {
-        x = platforms[i][0]; y = platforms[i][1]; w = platforms[i][2];
-        if (px + 9 > x && px < x + w && py + 12 > y && py < y + 8) {
-            if (vy >= 0 && old_y + 12 <= y + 3) { py = y - 12; vy = 0; grounded = 1; }
-            else if (vy < 0 && old_y >= y + 8) { py = y + 8; vy = 0; }
-            else if (vx > 0) px = x - 9;
-            else if (vx < 0) px = x + w;
+    px = 28; py = 82; face_x = 1; face_y = 0; hero_hp = 6; gold = 0;
+    room = 0; swing_timer = 0; spell_timer = 0; hurt_timer = 0; bolt_timer = 0;
+    game_state = 1;
+    load_room(room);
+}
+
+static int solid_at(int x, int y)
+{
+    int i;
+    if (y < 23 || y > 149 || x < 15) return 1;
+    if (x > 225 && !(enemy_count == 0 && y >= 65 && y <= 101)) return 1;
+    for (i = 0; i < 3; ++i)
+        if (x + 5 > pillar_x[i] && x - 5 < pillar_x[i] + 16 &&
+            y + 5 > pillar_y[i] && y - 5 < pillar_y[i] + 16) return 1;
+    return 0;
+}
+
+static void damage_enemy(int index, int amount)
+{
+    enemy_hp[index] -= amount;
+    if (enemy_hp[index] <= 0) {
+        enemy_active[index] = 0;
+        --enemy_count;
+        gold += room == 2 ? 25 : 5 + room * 3;
+    }
+}
+
+static int abs_value(int value)
+{
+    return value < 0 ? -value : value;
+}
+
+static void melee_attack(void)
+{
+    int i, dx, dy;
+    swing_timer = 10;
+    for (i = 0; i < 4; ++i) if (enemy_active[i]) {
+        dx = enemy_x[i] - px; dy = enemy_y[i] - py;
+        if (face_x && dx * face_x >= 0 && dx * face_x <= 23 && abs_value(dy) <= 12)
+            damage_enemy(i, 1);
+        else if (face_y && dy * face_y >= 0 && dy * face_y <= 23 && abs_value(dx) <= 12)
+            damage_enemy(i, 1);
+    }
+}
+
+static void cast_spell(void)
+{
+    int i, dx, dy, distance, best = 72, target = -1;
+    spell_timer = 35;
+    bolt_x = px + face_x * 68; bolt_y = py + face_y * 68; bolt_timer = 8;
+    for (i = 0; i < 4; ++i) if (enemy_active[i]) {
+        dx = enemy_x[i] - px; dy = enemy_y[i] - py;
+        distance = face_x ? dx * face_x : dy * face_y;
+        if (distance >= 0 && distance <= best &&
+            (face_x ? abs_value(dy) <= 9 : abs_value(dx) <= 9)) {
+            best = distance; target = i;
         }
+    }
+    if (target >= 0) {
+        bolt_x = enemy_x[target]; bolt_y = enemy_y[target];
+        damage_enemy(target, 2);
     }
 }
 
 static void update(u16 keys)
 {
-    int old_y = py, i;
-    int pressed = (u16)(previous_keys & (u16)~keys);
-    if (game_state == 0) {
+    int i, dx, dy;
+    u16 pressed = (u16)(previous_keys & (u16)~keys);
+    if (game_state == 0 || game_state == 2 || game_state == 4) {
         if (pressed & (KEY_START | KEY_A)) restart();
         previous_keys = keys;
         return;
@@ -125,128 +180,165 @@ static void update(u16 keys)
         return;
     }
     if (game_state == 3) { previous_keys = keys; return; }
-    if (game_state == 2) {
-        if (pressed & (KEY_START | KEY_A)) { game_state = 0; }
-        previous_keys = keys;
-        return;
-    }
-    if (pressed & KEY_A && grounded) { vy = -5; grounded = 0; }
-    if ((pressed & KEY_B) && dash_cooldown == 0) {
-        dash_frames = 10; dash_cooldown = 48; vx = facing * 4;
-    }
-    if (dash_frames > 0) --dash_frames;
-    else {
-        if (!(keys & KEY_LEFT)) {
-            if (keys & KEY_RIGHT) { vx += 1; facing = 1; }
-            else vx = vx * 3 / 4;
-        } else { vx -= 1; facing = -1; }
-        if (vx > 2) vx = 2;
-        if (vx < -2) vx = -2;
-        if (vy < 5) ++vy;
-    }
-    if (dash_cooldown > 0) --dash_cooldown;
-    px += vx;
-    if (px < 0) px = 0;
-    collide_platforms(py);
-    py += vy;
-    collide_platforms(old_y);
-    if (px > 548) px = 548;
-    for (i = 0; i < 6; ++i) {
-        if (px + 9 > hazards[i][0] && px < hazards[i][0] + 12 && py + 12 > 136 && py < 144) {
-            px = 12; py = 132; vx = 0; vy = 0;
+
+    dx = (keys & KEY_RIGHT ? 1 : 0) - (keys & KEY_LEFT ? 1 : 0);
+    dy = (keys & KEY_DOWN ? 1 : 0) - (keys & KEY_UP ? 1 : 0);
+    if (dx) face_x = dx, face_y = 0;
+    else if (dy) face_x = 0, face_y = dy;
+    if (dx && !solid_at(px + dx, py)) px += dx;
+    if (dy && !solid_at(px, py + dy)) py += dy;
+    if ((pressed & KEY_A) && swing_timer == 0) melee_attack();
+    if ((pressed & KEY_B) && spell_timer == 0) cast_spell();
+    if (swing_timer > 0) --swing_timer;
+    if (spell_timer > 0) --spell_timer;
+    if (bolt_timer > 0) --bolt_timer;
+    if (hurt_timer > 0) --hurt_timer;
+
+    for (i = 0; i < 4; ++i) if (enemy_active[i]) {
+        dx = px - enemy_x[i]; dy = py - enemy_y[i];
+        if ((frame + i * 3) % 6 == 0) {
+            if (abs_value(dx) > abs_value(dy)) {
+                if (dx) enemy_x[i] += dx > 0 ? 1 : -1;
+            } else if (dy) enemy_y[i] += dy > 0 ? 1 : -1;
+            if (solid_at(enemy_x[i], enemy_y[i])) {
+                if (abs_value(dx) > abs_value(dy)) enemy_x[i] -= dx > 0 ? 1 : -1;
+                else enemy_y[i] -= dy > 0 ? 1 : -1;
+            }
+        }
+        if (abs_value(dx) < 10 && abs_value(dy) < 10 && hurt_timer == 0) {
+            --hero_hp; hurt_timer = 48;
+            if (hero_hp <= 0) game_state = 4;
         }
     }
-    for (i = 0; i < 10; ++i) {
-        if (!(chip_flags & (1u << i)) && px + 9 > crystals[i][0] - 3 && px < crystals[i][0] + 8 && py + 12 > crystals[i][1] - 4 && py < crystals[i][1] + 8) {
-            chip_flags |= 1u << i;
-            ++chip_count;
+    if (enemy_count == 0 && px > 225 && py >= 65 && py <= 101) {
+        if (++room >= 3) game_state = 2;
+        else {
+            px = 26; py = 82; hero_hp = hero_hp < 6 ? hero_hp + 1 : 6;
+            load_room(room);
         }
     }
-    camera_x = px - 110;
-    if (camera_x < 0) camera_x = 0;
-    if (camera_x > 320) camera_x = 320;
-    if (px >= 535) game_state = 2;
-    if (py > 170) { px = 12; py = 132; vy = 0; }
     previous_keys = keys;
 }
 
 static void draw_background(void)
 {
-    int i;
-    rect(0,0,240,160,sky);
-    rect(0,80,240,30,RGB(7,17,24));
-    for (i = 0; i < 18; ++i) {
-        int x = (i * 43 - camera_x / 4 + 300) % 240;
-        int y = 12 + (i * 29) % 57;
-        pixel(x,y,RGB(16,25,27));
-        pixel(x+1,y,RGB(16,25,27));
+    int x, y, i;
+    rect(0,0,240,160,RGB(3,7,11));
+    for(y=23;y<151;y+=16) for(x=15;x<225;x+=16) {
+        rect(x,y,16,16,((x/16+y/16)&1)?RGB(10,13,15):RGB(9,12,14));
+        rect(x,y,15,1,RGB(13,16,17)); rect(x,y,1,16,RGB(12,15,16));
     }
-    rect(0,122,240,22,RGB(8,15,20));
-    for (i = 0; i < 10; ++i) {
-        int x = (i * 31 - camera_x / 2 + 300) % 250;
-        rect(x,112 + (i%3)*4,9,24,RGB(9,18,23));
-        rect(x+2,116 + (i%3)*4,2,2,RGB(14,26,26));
+    rect(0,0,240,22,RGB(12,15,17)); rect(0,151,240,9,RGB(12,15,17));
+    rect(0,22,14,129,RGB(12,15,17));
+    rect(226,22,14,42,RGB(12,15,17)); rect(226,102,14,49,RGB(12,15,17));
+    rect(225,64,15,39,enemy_count?RGB(19,12,10):RGB(14,10,8));
+    rect(229,68,11,31,enemy_count?RGB(8,9,11):RGB(3,7,10));
+    for(i=0;i<3;++i) {
+        rect(pillar_x[i]-2,pillar_y[i]+12,20,7,RGB(3,6,8));
+        rect(pillar_x[i],pillar_y[i]+3,16,15,RGB(18,21,21));
+        rect(pillar_x[i]+2,pillar_y[i],12,16,RGB(23,25,24));
+        rect(pillar_x[i]+2,pillar_y[i],12,2,RGB(29,28,24));
+    }
+    for(i=0;i<2;++i) {
+        x=i?209:24; rect(x,32,5,8,RGB(23,12,7));
+        rect(x+1,29,3,5,RGB(31,17,7)); pixel(x+2,27-(frame&1),RGB(31,23,11));
     }
 }
 
 static void draw_hero(void)
 {
-    int x = px - camera_x, y = py;
-    rect(x+1,y+7,3,5,RGB(27,10,17));
-    rect(x-1,y+10,3,2,amber);
-    rect(x+2,y,2,5,pale); rect(x+7,y,2,5,pale);
-    rect(x+1,y+5,8,7,mint);
-    rect(x,y+8,2,3,RGB(12,24,23)); rect(x+8,y+8,2,3,RGB(12,24,23));
-    rect(x+2,y+3,7,5,RGB(4,11,21));
-    rect(x+3,y+4,5,3,RGB(14,25,28));
-    rect(x+4,y+5,3,1,RGB(31,29,18));
-    rect(x+2,y+11,3,1,RGB(4,10,16)); rect(x+7,y+11,3,1,RGB(4,10,16));
-    if (dash_frames > 0) { rect(x-5,y+5,4,2,pale); rect(x-9,y+8,4,1,RGB(13,25,28)); }
+    int x=px,y=py;
+    rect(x-5,y+4,11,5,RGB(3,6,8));
+    if(face_x) rect(x-face_x*8-2,y-2,5,4,RGB(24,11,13));
+    else rect(x-2,y-face_y*8-2,4,5,RGB(24,11,13));
+    rect(x-4,y-5,8,10,mint); rect(x-5,y-3,3,5,mint); rect(x+2,y-3,3,5,mint);
+    rect(x-4,y-7,3,4,pale); rect(x+2,y-7,3,4,pale);
+    if(face_y<0) rect(x-3,y-5,6,3,RGB(5,12,21));
+    else if(face_x<0) rect(x-6,y-3,3,6,RGB(5,12,21));
+    else if(face_x>0) rect(x+3,y-3,3,6,RGB(5,12,21));
+    else rect(x-3,y+2,6,3,RGB(5,12,21));
+    if(face_y) rect(x-2,y+(face_y<0?-4:2),4,1,amber);
+    else rect(x+(face_x<0?-4:2),y-2,1,4,amber);
+    rect(x-3,y+4,2,2,RGB(5,10,13)); rect(x+2,y+4,2,2,RGB(5,10,13));
+    if(swing_timer>3) {
+        if(face_x) rect(x+face_x*8-2,y-7,4,14,amber);
+        else rect(x-7,y+face_y*8-2,14,4,amber);
+    }
+    if(hurt_timer>39&&(frame&2)) rect(x-5,y-8,10,14,pale);
+}
+
+static void draw_enemy(int i)
+{
+    int x=enemy_x[i], y=enemy_y[i];
+    int boss=room==2;
+    u16 skin=boss?RGB(25,8,12):RGB(16,23,12);
+    rect(x-6,y+4,boss?15:13,5,RGB(3,6,8));
+    rect(x-(boss?7:5),y-(boss?7:5),boss?14:10,boss?12:10,skin);
+    rect(x-6,y-6,3,4,boss?RGB(31,13,7):RGB(18,25,13));
+    rect(x+3,y-6,3,4,boss?RGB(31,13,7):RGB(18,25,13));
+    rect(x-4,y-2,3,2,RGB(31,8,6)); rect(x+2,y-2,3,2,RGB(31,8,6));
+    if(boss||enemy_hp[i]>1) {
+        rect(x-7,y-11,14,2,RGB(5,6,7));
+        rect(x-7,y-11,enemy_hp[i]*2,2,RGB(27,8,8));
+    }
+}
+
+static void number(int value, int x, int y, u16 color)
+{
+    char digits[5];
+    int count=0;
+    do { digits[count++]=(char)('0'+value%10); value/=10; } while(value&&count<4);
+    while(count) {
+        char digit[2]; digit[0]=digits[--count]; digit[1]=0;
+        text(digit,x,y,color,1); x+=4;
+    }
 }
 
 static void draw_game(void)
 {
-    int i, x, y, w;
+    int i;
     draw_background();
-    for (i = 0; i < 8; ++i) {
-        x = platforms[i][0] - camera_x; y = platforms[i][1]; w = platforms[i][2];
-        rect(x,y,w,8,RGB(8,14,17)); rect(x,y,w,2,RGB(17,26,18));
-        rect(x,y+2,w,6,RGB(12,20,20));
-        for (int j = 5; j < w; j += 13) rect(x+j,y+4,2,2,RGB(15,24,19));
-    }
-    for (i = 0; i < 6; ++i) {
-        x = hazards[i][0] - camera_x;
-        rect(x,141,12,3,RGB(20,8,13));
-        for (int j = 0; j < 3; ++j) {
-            rect(x+j*4+1,137,2,4,RGB(31,11,14));
-            pixel(x+j*4+1,136,RGB(31,18,13));
+    for(i=0;i<4;++i) if(enemy_active[i]) draw_enemy(i);
+    if(bolt_timer) {
+        int x=px,y=py,steps;
+        for(steps=0;steps<8;++steps) {
+            x+=face_x*7; y+=face_y*7;
+            if((face_x&&abs_value(x-px)>abs_value(bolt_x-px))||
+               (face_y&&abs_value(y-py)>abs_value(bolt_y-py))) break;
+            rect(x-2,y-2,5,5,steps&1?pale:RGB(11,26,31));
         }
-    }
-    for (i = 0; i < 10; ++i) if (!(chip_flags & (1u << i))) {
-        x = crystals[i][0] - camera_x; y = crystals[i][1] + ((frame >> 3) & 1);
-        rect(x+2,y,3,7,RGB(14,28,21)); rect(x,y+2,7,3,RGB(18,30,22));
-        pixel(x+3,y+2,RGB(31,30,19));
+        rect(bolt_x-3,bolt_y-3,7,7,pale);
     }
     draw_hero();
-    rect(0,0,240,12,RGB(3,8,14));
-    text("BYTEBOUND",5,3,pale,1);
-    text("CHIPS",139,3,amber,1);
-    for (i = 0; i < 10; ++i) rect(163+i*6,4,4,5,(chip_flags & (1u<<i)) ? mint : RGB(8,14,17));
+    rect(0,0,240,18,RGB(3,7,11));
+    text("CRYPT",3,5,amber,1); number(room+1,24,5,pale);
+    text("HP",38,5,pale,1);
+    for(i=0;i<6;++i) rect(48+i*6,5,4,7,i<hero_hp?RGB(27,9,11):RGB(9,11,12));
+    text("G",88,5,amber,1); number(gold,96,5,pale);
+    text("FOES",172,5,pale,1); number(enemy_count,192,5,amber);
+    rect(0,152,240,8,RGB(3,7,11)); text("A ATTACK B MAGIC",56,154,RGB(17,21,20),1);
+}
+
+static void text_center(const char *s, int y, u16 color, int scale)
+{
+    int length=0;
+    while(s[length]) ++length;
+    text(s,(240-length*4*scale+scale)/2,y,color,scale);
 }
 
 static void draw_overlay(const char *line1, const char *line2, const char *line3)
 {
     rect(23,40,194,75,RGB(3,9,15));
-    rect(25,42,190,71,RGB(8,16,21));
-    text(line1, 120-(int)(line1[0] ? 1 : 0), 52, pale, 2);
-    text(line2, 76, 70, amber, 1);
-    text(line3, 54, 91, mint, 1);
+    rect(25,42,190,71,RGB(13,16,17));
+    text_center(line1,53,pale,2);
+    text_center(line2,72,amber,1);
+    text_center(line3,94,mint,1);
 }
 
 int main(void)
 {
     REG_DISPCNT = 0x0403;
-    px=12; py=132; facing=1; game_state=0;
+    px=28; py=82; face_x=1; face_y=0; game_state=0; enemy_count=1;
     for (;;) {
         u16 keys;
         wait_vblank();
@@ -256,11 +348,13 @@ int main(void)
         if (game_state == 0) {
             draw_background();
             draw_hero();
-            draw_overlay("BYTEBOUND", "NEON BURROW", "PRESS START");
+            draw_overlay("BYTEBOUND", "CRYPT DELVE", "START TO ENTER");
         } else if (game_state == 3) {
             draw_game(); draw_overlay("PAUSED", "", "START RESUME");
         } else if (game_state == 2) {
-            draw_game(); draw_overlay("SIGNAL OK", "FOX GO HOME", "START RETRY");
+            draw_game(); draw_overlay("DUNGEON CLEAR", "GOLD COLLECTED", "START AGAIN");
+        } else if (game_state == 4) {
+            draw_game(); draw_overlay("YOU FELL", "THE CRYPT WAITS", "START RETRY");
         } else draw_game();
     }
 }
